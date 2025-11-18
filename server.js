@@ -173,11 +173,20 @@ cron.schedule('0 */6 * * *', async () => {
 // ==================== API ROUTES ====================
 
 // Health check
-app.get('/health', (req, res) => {
+app.get('/health', async (req, res) => {
+  let dbStatus = 'unknown';
+  try {
+    await pool.query('SELECT 1');
+    dbStatus = 'connected';
+  } catch (error) {
+    dbStatus = 'error: ' + error.message;
+  }
+
   res.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    database: pool ? 'connected' : 'disconnected'
+    database: dbStatus,
+    databaseUrlSet: !!process.env.DATABASE_URL
   });
 });
 
@@ -198,6 +207,9 @@ app.get('/', (req, res) => {
 // Get latest deals
 app.get('/api/deals/latest', async (req, res) => {
   try {
+    console.log('Fetching deals from database...');
+    console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
+
     const { rows } = await pool.query(`
       SELECT
         id,
@@ -223,6 +235,8 @@ app.get('/api/deals/latest', async (req, res) => {
       LIMIT 100
     `);
 
+    console.log('Fetched', rows.length, 'deals from database');
+
     // Calculate monthly payment for each deal (assuming £85,819 balance, 15 years)
     const dealsWithPayments = rows.map(deal => {
       const principal = 85819.31;
@@ -245,8 +259,9 @@ app.get('/api/deals/latest', async (req, res) => {
 
     res.json(dealsWithPayments);
   } catch (error) {
-    console.error('Error fetching deals:', error);
-    res.status(500).json({ error: 'Failed to fetch deals' });
+    console.error('Error fetching deals:', error.message);
+    console.error('Full error:', error);
+    res.status(500).json({ error: 'Failed to fetch deals', details: error.message });
   }
 });
 
@@ -325,8 +340,8 @@ app.get('/api/stats', async (req, res) => {
       dealsBySource: bySource.rows
     });
   } catch (error) {
-    console.error('Error getting stats:', error);
-    res.status(500).json({ error: 'Failed to get stats' });
+    console.error('Error getting stats:', error.message);
+    res.status(500).json({ error: 'Failed to get stats', details: error.message });
   }
 });
 
