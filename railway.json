@@ -4,6 +4,7 @@
     "builder": "NIXPACKS",
     "nixpacksVersion": "1.38.0",
     "nixpacksPlan": {
+      "providers": ["node"],
       "phases": {
         "install": {
           "dependsOn": ["setup"],
