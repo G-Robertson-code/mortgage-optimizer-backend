@@ -9,8 +9,14 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Database connection
+console.log('DATABASE_URL set:', !!process.env.DATABASE_URL);
+
+if (!process.env.DATABASE_URL) {
+  console.error('WARNING: DATABASE_URL is not set!');
+}
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/mortgage_optimizer',
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
