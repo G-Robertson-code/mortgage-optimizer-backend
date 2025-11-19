@@ -1,39 +1,8 @@
 {
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
-    "builder": "NIXPACKS",
-    "nixpacksVersion": "1.38.0",
-    "nixpacksPlan": {
-      "providers": ["node"],
-      "phases": {
-        "setup": {
-          "aptPkgs": [
-            "libnss3",
-            "libatk1.0-0",
-            "libatk-bridge2.0-0",
-            "libcups2",
-            "libgbm1",
-            "libasound2t64",
-            "libxss1",
-            "libxshmfence1",
-            "libgtk-3-0",
-            "ca-certificates",
-            "fonts-liberation",
-            "libdrm2",
-            "libx11-6",
-            "libxcomposite1",
-            "libxdamage1",
-            "libxext6",
-            "libxfixes3",
-            "libxrandr2"
-          ]
-        },
-        "install": {
-          "dependsOn": ["setup"],
-          "cmds": ["npm install --legacy-peer-deps"]
-        }
-      }
-    }
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "Dockerfile"
   },
   "deploy": {
     "startCommand": "npm start",
