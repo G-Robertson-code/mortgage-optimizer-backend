@@ -90,6 +90,41 @@ async function runAllScrapers() {
   return results;
 }
 
+function addMetrics(deal, baselineMonthly) {
+  const principal = 85819.31;
+  const years = 15;
+  const monthlyRate = (parseFloat(deal.interestRate) || 0) / 100 / 12;
+  const numPayments = years * 12;
+  const monthlyPayment = monthlyRate > 0
+    ? principal * (monthlyRate * Math.pow(1 + monthlyRate, numPayments)) / (Math.pow(1 + monthlyRate, numPayments) - 1)
+    : 0;
+  const arrangementFee = parseFloat(deal.arrangementFee) || 0;
+  const valuationFee = parseFloat(deal.valuationFee) || 0;
+  const legalFees = parseFloat(deal.legalFees) || 0;
+  const cashback = parseFloat(deal.cashback) || 0;
+  const netFees = arrangementFee + valuationFee + legalFees - cashback;
+  const totalCost2Years = monthlyPayment * 24 + netFees;
+  const totalCost5Years = monthlyPayment * 60 + netFees;
+  const result = {
+    ...deal,
+    monthlyPayment: Math.round(monthlyPayment * 100) / 100,
+    interestRate: parseFloat(deal.interestRate),
+    maxLTV: parseFloat(deal.maxLTV),
+    arrangementFee: arrangementFee,
+    valuationFee: valuationFee,
+    legalFees: legalFees,
+    cashback: cashback,
+    totalCost2Years: Math.round(totalCost2Years * 100) / 100,
+    totalCost5Years: Math.round(totalCost5Years * 100) / 100
+  };
+  if (baselineMonthly !== undefined) {
+    const savings = parseFloat(baselineMonthly) - result.monthlyPayment;
+    result.monthlySavings = Math.round(savings * 100) / 100;
+    result.breakEvenMonths = savings > 0 && netFees > 0 ? Math.ceil(netFees / savings) : null;
+  }
+  return result;
+}
+
 // Save deals to database
 async function saveDeals(deals, source) {
   let savedCount = 0;
@@ -214,34 +249,71 @@ app.get('/api/deals/latest', async (req, res) => {
       LIMIT 100`
     );
 
-    const normalized = rows.map(deal => {
-      const principal = 85819.31;
-      const years = 15;
-      const monthlyRate = deal.interestRate / 100 / 12;
-      const numPayments = years * 12;
-      const monthlyPayment = principal * (monthlyRate * Math.pow(1 + monthlyRate, numPayments)) / (Math.pow(1 + monthlyRate, numPayments) - 1);
-      return {
-        ...deal,
-        monthlyPayment: Math.round(monthlyPayment * 100) / 100,
-        interestRate: parseFloat(deal.interestRate),
-        maxLTV: parseFloat(deal.maxLTV),
-        arrangementFee: parseFloat(deal.arrangementFee),
-        valuationFee: parseFloat(deal.valuationFee),
-        legalFees: parseFloat(deal.legalFees),
-        cashback: parseFloat(deal.cashback)
-      };
-    });
+    const baselineMonthly = req.query.baselineMonthly ? parseFloat(req.query.baselineMonthly) : undefined;
+    const normalized = rows.map(deal => addMetrics(deal, baselineMonthly));
 
     if (normalized.length === 0) {
-      // Return sample data if DB is empty
-      return res.json(getSampleDeals());
+      const enrichedSamples = getSampleDeals().map(d => addMetrics(d, baselineMonthly));
+      return res.json(enrichedSamples);
     }
 
     res.json(normalized);
   } catch (error) {
     console.error('Database error, returning sample deals:', error.message);
-    // Return sample data on any error
-    return res.json(getSampleDeals());
+    const baselineMonthly = req.query.baselineMonthly ? parseFloat(req.query.baselineMonthly) : undefined;
+    const enrichedSamples = getSampleDeals().map(d => addMetrics(d, baselineMonthly));
+    return res.json(enrichedSamples);
+  }
+});
+
+app.get('/api/deals', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id,
+        lender_name as "lenderName",
+        product_name as "productName",
+        interest_rate as "interestRate",
+        deal_type as "dealType",
+        term_years as "termYears",
+        max_ltv as "maxLTV",
+        arrangement_fee as "arrangementFee",
+        valuation_fee as "valuationFee",
+        legal_fees as "legalFees",
+        cashback,
+        free_valuation as "freeValuation",
+        free_legal_work as "freeLegalWork",
+        overpayment_allowance as "overpaymentAllowance",
+        early_repayment_charges as "earlyRepaymentCharges",
+        lender_type as "lenderType",
+        source,
+        scraped_at as "scrapedAt"
+      FROM deals
+      ORDER BY interest_rate ASC
+      LIMIT 100`
+    );
+
+    const baselineMonthly = req.query.baselineMonthly ? parseFloat(req.query.baselineMonthly) : undefined;
+    const normalized = rows.map(deal => addMetrics(deal, baselineMonthly));
+
+    if (normalized.length === 0) {
+      const enrichedSamples = getSampleDeals().map(d => addMetrics(d, baselineMonthly));
+      return res.json(enrichedSamples);
+    }
+
+    res.json(normalized);
+  } catch (error) {
+    const baselineMonthly = req.query.baselineMonthly ? parseFloat(req.query.baselineMonthly) : undefined;
+    const enrichedSamples = getSampleDeals().map(d => addMetrics(d, baselineMonthly));
+    return res.json(enrichedSamples);
+  }
+});
+
+app.post('/api/deals/refresh', async (req, res) => {
+  try {
+    await runAllScrapers();
+    res.json({ status: 'ok' });
+  } catch (e) {
+    res.status(500).json({ error: 'refresh_failed' });
   }
 });
 
@@ -292,9 +364,20 @@ function getSampleDeals() {
 // Search deals with filters
 app.get('/api/deals/search', async (req, res) => {
   try {
-    const { maxRate, minLTV, dealType, lenderType } = req.query;
+    const {
+      maxRate,
+      minLTV,
+      dealType,
+      lenderType,
+      termYears,
+      freeValuation,
+      freeLegalWork,
+      maxArrangementFee,
+      hasCashback,
+      limit
+    } = req.query;
 
-    let query = 'SELECT * FROM deals WHERE 1=1';
+    let query = 'SELECT id, lender_name as "lenderName", product_name as "productName", interest_rate as "interestRate", deal_type as "dealType", term_years as "termYears", max_ltv as "maxLTV", arrangement_fee as "arrangementFee", valuation_fee as "valuationFee", legal_fees as "legalFees", cashback, free_valuation as "freeValuation", free_legal_work as "freeLegalWork", overpayment_allowance as "overpaymentAllowance", early_repayment_charges as "earlyRepaymentCharges", lender_type as "lenderType", source, scraped_at as "scrapedAt" FROM deals WHERE 1=1';
     const params = [];
     let paramCount = 0;
 
@@ -322,13 +405,79 @@ app.get('/api/deals/search', async (req, res) => {
       params.push(lenderType);
     }
 
-    query += ' ORDER BY interest_rate ASC LIMIT 50';
+    if (termYears) {
+      paramCount++;
+      query += ` AND term_years = $${paramCount}`;
+      params.push(termYears);
+    }
+
+    if (freeValuation === 'true') {
+      query += ' AND free_valuation = true';
+    }
+
+    if (freeLegalWork === 'true') {
+      query += ' AND free_legal_work = true';
+    }
+
+    if (maxArrangementFee) {
+      paramCount++;
+      query += ` AND arrangement_fee <= $${paramCount}`;
+      params.push(maxArrangementFee);
+    }
+
+    if (hasCashback === 'true') {
+      query += ' AND cashback > 0';
+    }
+
+    const lim = parseInt(limit || '50', 10);
+    query += ` ORDER BY interest_rate ASC LIMIT ${isNaN(lim) ? 50 : lim}`;
 
     const { rows } = await pool.query(query, params);
-    res.json(rows);
+    const baselineMonthly = req.query.baselineMonthly ? parseFloat(req.query.baselineMonthly) : undefined;
+    const normalized = rows.map(deal => addMetrics(deal, baselineMonthly));
+
+    if (normalized.length === 0) {
+      const scraped = await moneySuperMarketScraper.scrape();
+      const filtered = scraped.filter(d => {
+        if (maxRate && !(d.interestRate <= parseFloat(maxRate))) return false;
+        if (minLTV && !(d.maxLTV >= parseFloat(minLTV))) return false;
+        if (dealType && d.dealType !== dealType) return false;
+        if (lenderType && d.lenderType !== lenderType) return false;
+        if (termYears && !(d.termYears === parseInt(termYears))) return false;
+        if (freeValuation === 'true' && !d.freeValuation) return false;
+        if (freeLegalWork === 'true' && !d.freeLegalWork) return false;
+        if (maxArrangementFee && !(d.arrangementFee <= parseFloat(maxArrangementFee))) return false;
+        if (hasCashback === 'true' && !(d.cashback && d.cashback > 0)) return false;
+        return true;
+      }).slice(0, isNaN(lim) ? 50 : lim);
+      const enriched = filtered.map(deal => addMetrics(deal, baselineMonthly));
+      return res.json(enriched);
+    }
+
+    res.json(normalized);
   } catch (error) {
-    console.error('Error searching deals:', error);
-    res.status(500).json({ error: 'Failed to search deals' });
+    try {
+      const { maxRate, minLTV, dealType, lenderType, termYears, freeValuation, freeLegalWork, maxArrangementFee, hasCashback, limit } = req.query;
+      const lim = parseInt(limit || '50', 10);
+      const baselineMonthly = req.query.baselineMonthly ? parseFloat(req.query.baselineMonthly) : undefined;
+      const scraped = await moneySuperMarketScraper.scrape();
+      const filtered = scraped.filter(d => {
+        if (maxRate && !(d.interestRate <= parseFloat(maxRate))) return false;
+        if (minLTV && !(d.maxLTV >= parseFloat(minLTV))) return false;
+        if (dealType && d.dealType !== dealType) return false;
+        if (lenderType && d.lenderType !== lenderType) return false;
+        if (termYears && !(d.termYears === parseInt(termYears))) return false;
+        if (freeValuation === 'true' && !d.freeValuation) return false;
+        if (freeLegalWork === 'true' && !d.freeLegalWork) return false;
+        if (maxArrangementFee && !(d.arrangementFee <= parseFloat(maxArrangementFee))) return false;
+        if (hasCashback === 'true' && !(d.cashback && d.cashback > 0)) return false;
+        return true;
+      }).slice(0, isNaN(lim) ? 50 : lim);
+      const enriched = filtered.map(deal => addMetrics(deal, baselineMonthly));
+      return res.json(enriched);
+    } catch (e) {
+      return res.status(500).json({ error: 'Failed to search deals' });
+    }
   }
 });
 
