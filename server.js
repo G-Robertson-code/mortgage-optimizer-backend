@@ -70,6 +70,7 @@ app.use(cors());
 app.use(express.json());
 
 const moneySuperMarketScraper = require('./scrapers/moneySuperMarket');
+const compareTheMarketScraper = require('./scrapers/compareTheMarket');
 
 // Run all scrapers
 async function runAllScrapers() {
@@ -84,6 +85,15 @@ async function runAllScrapers() {
   } catch (error) {
     console.error('MoneySuperMarket scraper error:', error);
     await logScrape('MoneySuperMarket', 'error', 0, error.message);
+  }
+
+  try {
+    const ctmDeals = await compareTheMarketScraper.scrape();
+    results.push({ source: 'CompareTheMarket', deals: ctmDeals.length });
+    await saveDeals(ctmDeals, 'CompareTheMarket');
+  } catch (error) {
+    console.error('CompareTheMarket scraper error:', error);
+    await logScrape('CompareTheMarket', 'error', 0, error.message);
   }
 
   console.log('Scrape job completed:', results);
@@ -252,17 +262,35 @@ app.get('/api/deals/latest', async (req, res) => {
     const baselineMonthly = req.query.baselineMonthly ? parseFloat(req.query.baselineMonthly) : undefined;
     const normalized = rows.map(deal => addMetrics(deal, baselineMonthly));
 
-    if (normalized.length === 0) {
-      const scraped = await moneySuperMarketScraper.scrape();
-      const enriched = scraped.map(d => addMetrics(d, baselineMonthly));
+    if (normalized.length < 5) {
+      const [msm, ctm] = await Promise.all([
+        moneySuperMarketScraper.scrape(),
+        compareTheMarketScraper.scrape()
+      ]);
+      const combined = [...msm, ...ctm];
+      const byKey = new Map();
+      for (const d of combined) {
+        const key = `${(d.lenderName||'').toLowerCase()}|${(d.productName||'').toLowerCase()}`;
+        if (!byKey.has(key)) byKey.set(key, d);
+      }
+      const enriched = Array.from(byKey.values()).map(d => addMetrics(d, baselineMonthly));
       return res.json(enriched);
     }
 
     res.json(normalized);
   } catch (error) {
     const baselineMonthly = req.query.baselineMonthly ? parseFloat(req.query.baselineMonthly) : undefined;
-    const scraped = await moneySuperMarketScraper.scrape();
-    const enriched = scraped.map(d => addMetrics(d, baselineMonthly));
+    const [msm, ctm] = await Promise.all([
+      moneySuperMarketScraper.scrape(),
+      compareTheMarketScraper.scrape()
+    ]);
+    const combined = [...msm, ...ctm];
+    const byKey = new Map();
+    for (const d of combined) {
+      const key = `${(d.lenderName||'').toLowerCase()}|${(d.productName||'').toLowerCase()}`;
+      if (!byKey.has(key)) byKey.set(key, d);
+    }
+    const enriched = Array.from(byKey.values()).map(d => addMetrics(d, baselineMonthly));
     return res.json(enriched);
   }
 });
@@ -296,17 +324,35 @@ app.get('/api/deals', async (req, res) => {
     const baselineMonthly = req.query.baselineMonthly ? parseFloat(req.query.baselineMonthly) : undefined;
     const normalized = rows.map(deal => addMetrics(deal, baselineMonthly));
 
-    if (normalized.length === 0) {
-      const scraped = await moneySuperMarketScraper.scrape();
-      const enriched = scraped.map(d => addMetrics(d, baselineMonthly));
+    if (normalized.length < 5) {
+      const [msm, ctm] = await Promise.all([
+        moneySuperMarketScraper.scrape(),
+        compareTheMarketScraper.scrape()
+      ]);
+      const combined = [...msm, ...ctm];
+      const byKey = new Map();
+      for (const d of combined) {
+        const key = `${(d.lenderName||'').toLowerCase()}|${(d.productName||'').toLowerCase()}`;
+        if (!byKey.has(key)) byKey.set(key, d);
+      }
+      const enriched = Array.from(byKey.values()).map(d => addMetrics(d, baselineMonthly));
       return res.json(enriched);
     }
 
     res.json(normalized);
   } catch (error) {
     const baselineMonthly = req.query.baselineMonthly ? parseFloat(req.query.baselineMonthly) : undefined;
-    const scraped = await moneySuperMarketScraper.scrape();
-    const enriched = scraped.map(d => addMetrics(d, baselineMonthly));
+    const [msm, ctm] = await Promise.all([
+      moneySuperMarketScraper.scrape(),
+      compareTheMarketScraper.scrape()
+    ]);
+    const combined = [...msm, ...ctm];
+    const byKey = new Map();
+    for (const d of combined) {
+      const key = `${(d.lenderName||'').toLowerCase()}|${(d.productName||'').toLowerCase()}`;
+      if (!byKey.has(key)) byKey.set(key, d);
+    }
+    const enriched = Array.from(byKey.values()).map(d => addMetrics(d, baselineMonthly));
     return res.json(enriched);
   }
 });
@@ -440,7 +486,11 @@ app.get('/api/deals/search', async (req, res) => {
     const normalized = rows.map(deal => addMetrics(deal, baselineMonthly));
 
     if (normalized.length === 0) {
-      const scraped = await moneySuperMarketScraper.scrape();
+      const [msm, ctm] = await Promise.all([
+        moneySuperMarketScraper.scrape(),
+        compareTheMarketScraper.scrape()
+      ]);
+      const scraped = [...msm, ...ctm];
       const filtered = scraped.filter(d => {
         if (maxRate && !(d.interestRate <= parseFloat(maxRate))) return false;
         if (minLTV && !(d.maxLTV >= parseFloat(minLTV))) return false;
@@ -463,7 +513,11 @@ app.get('/api/deals/search', async (req, res) => {
       const { maxRate, minLTV, dealType, lenderType, termYears, freeValuation, freeLegalWork, maxArrangementFee, hasCashback, limit } = req.query;
       const lim = parseInt(limit || '50', 10);
       const baselineMonthly = req.query.baselineMonthly ? parseFloat(req.query.baselineMonthly) : undefined;
-      const scraped = await moneySuperMarketScraper.scrape();
+      const [msm, ctm] = await Promise.all([
+        moneySuperMarketScraper.scrape(),
+        compareTheMarketScraper.scrape()
+      ]);
+      const scraped = [...msm, ...ctm];
       const filtered = scraped.filter(d => {
         if (maxRate && !(d.interestRate <= parseFloat(maxRate))) return false;
         if (minLTV && !(d.maxLTV >= parseFloat(minLTV))) return false;
