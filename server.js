@@ -250,24 +250,20 @@ app.get('/api/deals/latest', async (req, res) => {
     );
 
     const baselineMonthly = req.query.baselineMonthly ? parseFloat(req.query.baselineMonthly) : undefined;
-    let normalized = rows.map(deal => addMetrics(deal, baselineMonthly));
+    const normalized = rows.map(deal => addMetrics(deal, baselineMonthly));
 
-    if (normalized.length < 15) {
-      const samples = getSampleDeals().map(d => addMetrics(d, baselineMonthly));
-      const byKey = new Map();
-      for (const d of [...normalized, ...samples]) {
-        const key = `${(d.lenderName||'').toLowerCase()}|${(d.productName||'').toLowerCase()}`;
-        if (!byKey.has(key)) byKey.set(key, d);
-      }
-      normalized = Array.from(byKey.values());
+    if (normalized.length === 0) {
+      const scraped = await moneySuperMarketScraper.scrape();
+      const enriched = scraped.map(d => addMetrics(d, baselineMonthly));
+      return res.json(enriched);
     }
 
     res.json(normalized);
   } catch (error) {
-    console.error('Database error, returning sample deals:', error.message);
     const baselineMonthly = req.query.baselineMonthly ? parseFloat(req.query.baselineMonthly) : undefined;
-    let samples = getSampleDeals().map(d => addMetrics(d, baselineMonthly));
-    res.json(samples);
+    const scraped = await moneySuperMarketScraper.scrape();
+    const enriched = scraped.map(d => addMetrics(d, baselineMonthly));
+    return res.json(enriched);
   }
 });
 
@@ -298,23 +294,20 @@ app.get('/api/deals', async (req, res) => {
     );
 
     const baselineMonthly = req.query.baselineMonthly ? parseFloat(req.query.baselineMonthly) : undefined;
-    let normalized = rows.map(deal => addMetrics(deal, baselineMonthly));
+    const normalized = rows.map(deal => addMetrics(deal, baselineMonthly));
 
-    if (normalized.length < 15) {
-      const samples = getSampleDeals().map(d => addMetrics(d, baselineMonthly));
-      const byKey = new Map();
-      for (const d of [...normalized, ...samples]) {
-        const key = `${(d.lenderName||'').toLowerCase()}|${(d.productName||'').toLowerCase()}`;
-        if (!byKey.has(key)) byKey.set(key, d);
-      }
-      normalized = Array.from(byKey.values());
+    if (normalized.length === 0) {
+      const scraped = await moneySuperMarketScraper.scrape();
+      const enriched = scraped.map(d => addMetrics(d, baselineMonthly));
+      return res.json(enriched);
     }
 
     res.json(normalized);
   } catch (error) {
     const baselineMonthly = req.query.baselineMonthly ? parseFloat(req.query.baselineMonthly) : undefined;
-    const samples = getSampleDeals().map(d => addMetrics(d, baselineMonthly));
-    return res.json(samples);
+    const scraped = await moneySuperMarketScraper.scrape();
+    const enriched = scraped.map(d => addMetrics(d, baselineMonthly));
+    return res.json(enriched);
   }
 });
 
