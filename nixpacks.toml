@@ -1,8 +1,8 @@
 [phases.setup]
-aptPkgs = ["...", "chromium", "libnss3", "libatk1.0-0", "libatk-bridge2.0-0", "libcups2", "libgbm1", "libasound2t64", "libpangocairo-1.0-0", "libxss1", "libgtk-3-0", "libxshmfence1", "libglu1"]
+aptPkgs = ["libnss3", "libatk1.0-0", "libatk-bridge2.0-0", "libcups2", "libgbm1", "libasound2t64", "libpangocairo-1.0-0", "libxss1", "libgtk-3-0", "libxshmfence1", "libglu1", "ca-certificates", "fonts-liberation", "libdrm2", "libx11-6", "libxcomposite1", "libxdamage1", "libxext6", "libxfixes3", "libxrandr2"]
 
 [phases.install]
-cmds = ["npm install --legacy-peer-deps"]
+cmds = ["PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=false PUPPETEER_CACHE_DIR=.cache/puppeteer npm install --legacy-peer-deps"]
 
 [phases.build]
 cmds = ["echo 'Build phase complete'"]

@@ -8,7 +8,6 @@
       "phases": {
         "setup": {
           "aptPkgs": [
-            "chromium",
             "libnss3",
             "libatk1.0-0",
             "libatk-bridge2.0-0",
@@ -20,7 +19,13 @@
             "libgtk-3-0",
             "ca-certificates",
             "fonts-liberation",
-            "libdrm2"
+            "libdrm2",
+            "libx11-6",
+            "libxcomposite1",
+            "libxdamage1",
+            "libxext6",
+            "libxfixes3",
+            "libxrandr2"
           ]
         },
         "install": {

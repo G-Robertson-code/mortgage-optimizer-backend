@@ -1,44 +1,29 @@
 const puppeteer = require('puppeteer');
 const fs = require('fs');
 
-function resolveChromiumPath() {
-  const envPath = process.env.PUPPETEER_EXECUTABLE_PATH || process.env.CHROMIUM_PATH;
-  const candidates = [
-    envPath,
-    '/usr/bin/chromium',
-    '/usr/bin/chromium-browser',
-    '/usr/bin/google-chrome',
-    '/usr/bin/google-chrome-stable'
-  ].filter(Boolean);
-  for (const p of candidates) {
-    try {
-      if (fs.existsSync(p)) return p;
-    } catch (_) {}
-  }
-  return null;
-}
-
 async function scrape() {
   console.log('Starting MoneySuperMarket scraper...');
   const deals = [];
 
   let browser;
   try {
-    const executablePath = resolveChromiumPath();
-
     const launchOptions = {
       headless: 'new',
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
-        '--disable-gpu'
+        '--disable-gpu',
+        '--disable-features=HttpsFirstBalancedModeAutoEnable'
       ]
     };
 
-    if (executablePath) {
-      launchOptions.executablePath = executablePath;
-    }
+    try {
+      const ep = puppeteer.executablePath();
+      if (ep && fs.existsSync(ep)) {
+        launchOptions.executablePath = ep;
+      }
+    } catch (_) {}
 
     browser = await puppeteer.launch(launchOptions);
 
