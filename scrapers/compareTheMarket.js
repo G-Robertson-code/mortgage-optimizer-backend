@@ -1,4 +1,22 @@
 const puppeteer = require('puppeteer');
+const fs = require('fs');
+
+function resolveChromiumPath() {
+  const envPath = process.env.PUPPETEER_EXECUTABLE_PATH || process.env.CHROMIUM_PATH;
+  const candidates = [
+    envPath,
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable'
+  ].filter(Boolean);
+  for (const p of candidates) {
+    try {
+      if (fs.existsSync(p)) return p;
+    } catch (_) {}
+  }
+  return null;
+}
 
 async function scrape() {
   console.log('Starting CompareTheMarket scraper...');
@@ -6,8 +24,14 @@ async function scrape() {
 
   let browser;
   try {
+    const executablePath = resolveChromiumPath();
+    if (!executablePath) {
+      throw new Error('Chromium not found. Set PUPPETEER_EXECUTABLE_PATH or install system chromium');
+    }
+
     browser = await puppeteer.launch({
       headless: 'new',
+      executablePath,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -74,91 +98,7 @@ async function scrape() {
     }
   }
 
-  // Fallback sample data
-  if (deals.length === 0) {
-    console.log('CompareTheMarket: Using fallback sample data');
-    return getSampleDeals();
-  }
-
   return deals;
-}
-
-function getSampleDeals() {
-  return [
-    {
-      lenderName: 'Lloyds Bank',
-      productName: '2 Year Fixed - 60% LTV',
-      interestRate: 4.22,
-      dealType: 'Fixed',
-      termYears: 2,
-      maxLTV: 60,
-      arrangementFee: 999,
-      freeValuation: true,
-      freeLegalWork: true,
-      lenderType: 'UK Mainstream'
-    },
-    {
-      lenderName: 'Yorkshire Building Society',
-      productName: '5 Year Fixed - 75% LTV',
-      interestRate: 4.31,
-      dealType: 'Fixed',
-      termYears: 5,
-      maxLTV: 75,
-      arrangementFee: 0,
-      freeValuation: true,
-      freeLegalWork: true,
-      lenderType: 'UK Mainstream'
-    },
-    {
-      lenderName: 'Skipton Building Society',
-      productName: '2 Year Fixed - 75% LTV',
-      interestRate: 4.45,
-      dealType: 'Fixed',
-      termYears: 2,
-      maxLTV: 75,
-      arrangementFee: 995,
-      freeValuation: true,
-      freeLegalWork: false,
-      lenderType: 'UK Mainstream'
-    },
-    {
-      lenderName: 'Metro Bank',
-      productName: '3 Year Fixed - 75% LTV',
-      interestRate: 4.55,
-      dealType: 'Fixed',
-      termYears: 3,
-      maxLTV: 75,
-      arrangementFee: 499,
-      cashback: 1000,
-      freeValuation: true,
-      freeLegalWork: true,
-      lenderType: 'UK Challenger Bank'
-    },
-    {
-      lenderName: 'Coventry Building Society',
-      productName: '2 Year Fixed - 60% LTV',
-      interestRate: 4.12,
-      dealType: 'Fixed',
-      termYears: 2,
-      maxLTV: 60,
-      arrangementFee: 999,
-      freeValuation: true,
-      freeLegalWork: true,
-      lenderType: 'UK Mainstream'
-    },
-    {
-      lenderName: 'First Direct',
-      productName: '5 Year Fixed - 60% LTV',
-      interestRate: 4.05,
-      dealType: 'Fixed',
-      termYears: 5,
-      maxLTV: 60,
-      arrangementFee: 490,
-      freeValuation: true,
-      freeLegalWork: true,
-      lenderType: 'UK Mainstream'
-    }
-  ];
 }
 
 module.exports = { scrape };

@@ -6,6 +6,23 @@
     "nixpacksPlan": {
       "providers": ["node"],
       "phases": {
+        "setup": {
+          "aptPkgs": [
+            "chromium",
+            "libnss3",
+            "libatk1.0-0",
+            "libatk-bridge2.0-0",
+            "libcups2",
+            "libgbm1",
+            "libasound2",
+            "libxss1",
+            "libxshmfence1",
+            "libgtk-3-0",
+            "ca-certificates",
+            "fonts-liberation",
+            "libdrm2"
+          ]
+        },
         "install": {
           "dependsOn": ["setup"],
           "cmds": ["npm install --legacy-peer-deps"]

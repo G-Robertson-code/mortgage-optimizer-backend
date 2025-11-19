@@ -1,4 +1,22 @@
 const puppeteer = require('puppeteer');
+const fs = require('fs');
+
+function resolveChromiumPath() {
+  const envPath = process.env.PUPPETEER_EXECUTABLE_PATH || process.env.CHROMIUM_PATH;
+  const candidates = [
+    envPath,
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable'
+  ].filter(Boolean);
+  for (const p of candidates) {
+    try {
+      if (fs.existsSync(p)) return p;
+    } catch (_) {}
+  }
+  return null;
+}
 
 async function scrape() {
   console.log('Starting MoneySuperMarket scraper...');
@@ -6,8 +24,14 @@ async function scrape() {
 
   let browser;
   try {
+    const executablePath = resolveChromiumPath();
+    if (!executablePath) {
+      throw new Error('Chromium not found. Set PUPPETEER_EXECUTABLE_PATH or install system chromium');
+    }
+
     browser = await puppeteer.launch({
       headless: 'new',
+      executablePath,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -85,118 +109,7 @@ async function scrape() {
     }
   }
 
-  // If scraping failed, return sample data
-  if (deals.length === 0) {
-    console.log('MoneySuperMarket: Using fallback sample data');
-    return getSampleDeals();
-  }
-
   return deals;
-}
-
-function getSampleDeals() {
-  return [
-    {
-      lenderName: 'Nationwide',
-      productName: '2 Year Fixed - 60% LTV',
-      interestRate: 4.19,
-      dealType: 'Fixed',
-      termYears: 2,
-      maxLTV: 60,
-      arrangementFee: 999,
-      freeValuation: true,
-      freeLegalWork: true,
-      overpaymentAllowance: 10,
-      earlyRepaymentCharges: '2% Year 1, 1% Year 2',
-      lenderType: 'UK Mainstream'
-    },
-    {
-      lenderName: 'HSBC',
-      productName: '5 Year Fixed - 75% LTV',
-      interestRate: 4.29,
-      dealType: 'Fixed',
-      termYears: 5,
-      maxLTV: 75,
-      arrangementFee: 999,
-      cashback: 250,
-      freeValuation: true,
-      freeLegalWork: false,
-      lenderType: 'UK Mainstream'
-    },
-    {
-      lenderName: 'Barclays',
-      productName: '2 Year Fixed - 75% LTV',
-      interestRate: 4.35,
-      dealType: 'Fixed',
-      termYears: 2,
-      maxLTV: 75,
-      arrangementFee: 899,
-      freeValuation: true,
-      freeLegalWork: true,
-      lenderType: 'UK Mainstream'
-    },
-    {
-      lenderName: 'Halifax',
-      productName: '2 Year Fixed - 60% LTV',
-      interestRate: 4.15,
-      dealType: 'Fixed',
-      termYears: 2,
-      maxLTV: 60,
-      arrangementFee: 1499,
-      cashback: 500,
-      freeValuation: true,
-      freeLegalWork: true,
-      lenderType: 'UK Mainstream'
-    },
-    {
-      lenderName: 'Santander',
-      productName: '5 Year Fixed - 60% LTV',
-      interestRate: 4.09,
-      dealType: 'Fixed',
-      termYears: 5,
-      maxLTV: 60,
-      arrangementFee: 999,
-      freeValuation: true,
-      freeLegalWork: true,
-      lenderType: 'UK Mainstream'
-    },
-    {
-      lenderName: 'NatWest',
-      productName: '2 Year Fixed - 75% LTV',
-      interestRate: 4.49,
-      dealType: 'Fixed',
-      termYears: 2,
-      maxLTV: 75,
-      arrangementFee: 0,
-      freeValuation: true,
-      freeLegalWork: true,
-      lenderType: 'UK Mainstream'
-    },
-    {
-      lenderName: 'TSB',
-      productName: '2 Year Fixed - 75% LTV',
-      interestRate: 4.39,
-      dealType: 'Fixed',
-      termYears: 2,
-      maxLTV: 75,
-      arrangementFee: 995,
-      freeValuation: true,
-      freeLegalWork: false,
-      lenderType: 'UK Mainstream'
-    },
-    {
-      lenderName: 'Virgin Money',
-      productName: '5 Year Fixed - 75% LTV',
-      interestRate: 4.25,
-      dealType: 'Fixed',
-      termYears: 5,
-      maxLTV: 75,
-      arrangementFee: 995,
-      freeValuation: true,
-      freeLegalWork: true,
-      lenderType: 'UK Mainstream'
-    }
-  ];
 }
 
 module.exports = { scrape };
