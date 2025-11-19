@@ -25,20 +25,21 @@ async function scrape() {
   let browser;
   try {
     const executablePath = resolveChromiumPath();
-    if (!executablePath) {
-      throw new Error('Chromium not found. Set PUPPETEER_EXECUTABLE_PATH or install system chromium');
-    }
 
-    browser = await puppeteer.launch({
+    const launchOptions = {
       headless: 'new',
-      executablePath,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu'
       ]
-    });
+    };
+    if (executablePath) {
+      launchOptions.executablePath = executablePath;
+    }
+
+    browser = await puppeteer.launch(launchOptions);
 
     const page = await browser.newPage();
     await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
